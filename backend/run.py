@@ -1,6 +1,19 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from app import create_app
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or ["http://localhost:3000"] for stricter control
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/test")
+def read_root():
+    return {"message": "Hello, world!"}
 
 if __name__ == "__main__":
-    app = create_app()
-    uvicorn.run(app, host="127.0.0.1", port=5000, reload=True)
+    uvicorn.run("run:app", host="0.0.0.0", port=8000, reload=True)
