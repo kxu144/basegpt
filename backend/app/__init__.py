@@ -3,8 +3,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # load environment variables
 from dotenv import load_dotenv
+
 assert load_dotenv("app/envs/.env")
 assert load_dotenv("app/envs/.env.credentials")
+
+# Import database to initialize connection and tables
+from app.utils.database import Base, engine
+from app.models import *
+Base.metadata.create_all(bind=engine)
+
 
 def create_app():
     app = FastAPI()
