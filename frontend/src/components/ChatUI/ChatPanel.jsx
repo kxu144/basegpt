@@ -18,16 +18,7 @@ export default function ChatPanel({
   convDate,
 }) {
   return (
-    <main className="flex-1 flex flex-col">
-      {/* Header */}
-      <header className="p-4 border-b border-gray-200 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">{convTitle}</h1>
-          <div className="text-xs text-gray-500">{convDate}</div>
-        </div>
-        <div className="text-sm text-gray-500">Chat-like UI — frontend only</div>
-      </header>
-
+    <main className="flex-1 flex flex-col bg-white">
       {/* Messages + Input */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Messages take all remaining space */}
@@ -36,7 +27,7 @@ export default function ChatPanel({
         </div>
 
         {/* Input stays at bottom */}
-        <div className="border-t">
+        <div className="border-t border-gray-200 bg-white">
           <MessageInput
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}

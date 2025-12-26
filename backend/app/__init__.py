@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# load environment variables
+from dotenv import load_dotenv
+assert load_dotenv("app/envs/.env")
+assert load_dotenv("app/envs/.env.credentials")
 
 def create_app():
     app = FastAPI()

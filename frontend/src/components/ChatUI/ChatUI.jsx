@@ -162,7 +162,7 @@ export default function ChatUI() {
   const convDate = selectedConv ? selectedConv.updated_at : "Select or start a conversation";
 
   return (
-    <div className="h-screen flex bg-gray-50 text-gray-900">
+    <div className="h-screen flex bg-white text-gray-900 overflow-hidden">
       <Sidebar
         conversations={conversations}
         selectedConvId={selectedConvId}
