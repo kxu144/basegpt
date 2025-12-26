@@ -5,31 +5,65 @@ export default function MessageInput({ value, onChange, onSend, sending, isNewCo
 
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+      const textarea = textareaRef.current;
+      const maxHeight = 200;
+      
+      // Reset height to auto to get accurate scrollHeight
+      textarea.style.height = "auto";
+      const scrollHeight = textarea.scrollHeight;
+      
+      // Set height (capped at maxHeight)
+      textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+      
+      // Only show scrollbar when content exceeds max height
+      if (scrollHeight > maxHeight) {
+        textarea.style.overflowY = "auto";
+      } else {
+        textarea.style.overflowY = "hidden";
+      }
     }
   }, [value]);
 
+  const handleKeyDown = (e) => {
+    // Explicitly handle Cmd-A / Ctrl-A for select all
+    if ((e.metaKey || e.ctrlKey) && (e.key === "a" || e.key === "A")) {
+      // Explicitly select all text in the textarea
+      if (textareaRef.current) {
+        e.preventDefault(); // Prevent any default that might interfere
+        textareaRef.current.select();
+        textareaRef.current.setSelectionRange(0, textareaRef.current.value.length);
+      }
+      return;
+    }
+    
+    // For all other modifier keys, let browser handle natively
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      return; // Let browser handle
+    }
+    
+    // Only handle Enter key (without Shift) to send message
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onKeyDown(e);
+      return;
+    }
+    
+    // For all other keys, let them work normally
+  };
+
   return (
     <div className="bg-white">
-      {error && (
-        <div className="px-4 pt-3">
-          <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            {error}
-          </div>
-        </div>
-      )}
       <div className="max-w-3xl mx-auto px-4 py-4">
         <div className="relative flex items-end gap-3 bg-white rounded-2xl border border-gray-300 shadow-sm hover:border-gray-400 focus-within:border-[#19c37d] focus-within:shadow-md transition-all">
           <textarea
             ref={textareaRef}
             value={value}
             onChange={onChange}
-            onKeyDown={onKeyDown}
-            placeholder="Message ChatGPT..."
+            onKeyDown={handleKeyDown}
+            placeholder="Send a message..."
             rows={1}
-            className="flex-1 resize-none rounded-2xl px-4 py-3 text-[15px] leading-relaxed focus:outline-none bg-transparent text-gray-900 placeholder-gray-500 max-h-[200px] overflow-y-auto"
-            style={{ minHeight: "24px" }}
+            className="flex-1 resize-none rounded-2xl px-4 py-3 text-[15px] leading-relaxed focus:outline-none bg-transparent text-gray-900 placeholder-gray-500 max-h-[200px] select-text"
+            style={{ minHeight: "24px", overflowY: "hidden", userSelect: "text" }}
           />
           <button
             onClick={onSend}
@@ -50,7 +84,7 @@ export default function MessageInput({ value, onChange, onSend, sending, isNewCo
           </button>
         </div>
         <div className="text-xs text-gray-500 text-center mt-2">
-          ChatGPT can make mistakes. Check important info.
+          AI models can make mistakes. Check important info.
         </div>
       </div>
     </div>

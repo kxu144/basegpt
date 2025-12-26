@@ -118,7 +118,18 @@ export default function ChatUI() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error(`POST /qa failed: ${res.status}`);
+      
+      if (!res.ok) {
+        let errorMessage = "Failed to send message. Please try again.";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch {
+          errorMessage = `Error: ${res.status} ${res.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+      
       const responseData = await res.json();
       // Expecting at least: { conversation_id, assistant_message: { text, created_at }, title? }
 
@@ -144,13 +155,20 @@ export default function ChatUI() {
       });
     } catch (err) {
       console.error(err);
-      setError("Failed to send message. Please try again.");
+      // Add error message inline after the user message
+      setMessages((prev) => [...prev, {
+        role: "error",
+        text: err.message || "An error occurred. Please try again.",
+        created_at: new Date().toISOString(),
+      }]);
     } finally {
       setSending(false);
     }
   }
 
   function handleKeyDown(e) {
+    // This should only receive Enter key events (modifier keys are filtered in MessageInput)
+    // Handle Enter key to send message
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -182,7 +200,6 @@ export default function ChatUI() {
         sending={sending}
         isNewConv={isNewConv}
         onKeyDown={handleKeyDown}
-        error={error}
         scrollRef={messagesContainerRef}
         selectedConvId={selectedConvId}
         convTitle={convTitle}

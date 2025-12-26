@@ -11,7 +11,6 @@ export default function ChatPanel({
   sending,
   isNewConv,
   onKeyDown,
-  error,
   scrollRef,
   selectedConvId,
   convTitle,
@@ -22,8 +21,8 @@ export default function ChatPanel({
       {/* Messages + Input */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Messages take all remaining space */}
-        <div className="flex-1 overflow-y-auto">
-          <MessageList messages={messages} loading={loadingConv} scrollRef={scrollRef} />
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          <MessageList messages={messages} loading={loadingConv} />
         </div>
 
         {/* Input stays at bottom */}
@@ -35,7 +34,6 @@ export default function ChatPanel({
             sending={sending}
             isNewConv={isNewConv}
             onKeyDown={onKeyDown}
-            error={error}
           />
         </div>
       </div>
