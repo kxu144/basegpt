@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { flushSync } from "react-dom";
 import Sidebar from "./Sidebar";
 import ChatPanel from "./ChatPanel";
 import { API_BASE } from "../../utils/api";
@@ -17,16 +18,165 @@ export default function ChatUI() {
   const [isNewConv, setIsNewConv] = useState(false);
   const convLoadController = useRef(null);
   const messagesContainerRef = useScrollToBottom(messages);
+  const wsRef = useRef(null);
+  const wsReconnectTimeoutRef = useRef(null);
 
-  useEffect(() => { loadConversationList(); }, []);
+  useEffect(() => {
+    loadConversationList();
+    connectWebSocket();
+    return () => {
+      disconnectWebSocket();
+    };
+  }, []);
 
-  // --- functions for loadConversationList, loadConversation, handleNewChat, handleSelectConversation, handleSend, handleKeyDown ---
-  // Copy from your original ChatUI.jsx (unchanged logic) — no UI code here
+  // WebSocket connection management
+  function getWebSocketUrl() {
+    const baseUrl = API_BASE || "http://127.0.0.1:8000";
+    // Convert http:// to ws:// and https:// to wss://
+    const wsUrl = baseUrl.replace(/^http/, "ws");
+    return `${wsUrl}/ws`;
+  }
+
+  function connectWebSocket() {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      return; // Already connected
+    }
+
+    try {
+      const ws = new WebSocket(getWebSocketUrl());
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log("WebSocket connected");
+        if (wsReconnectTimeoutRef.current) {
+          clearTimeout(wsReconnectTimeoutRef.current);
+          wsReconnectTimeoutRef.current = null;
+        }
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleWebSocketMessage(data);
+        } catch (err) {
+          console.error("Failed to parse WebSocket message:", err);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket disconnected");
+        wsRef.current = null;
+        // Attempt to reconnect after a delay
+        if (!wsReconnectTimeoutRef.current) {
+          wsReconnectTimeoutRef.current = setTimeout(() => {
+            wsReconnectTimeoutRef.current = null;
+            connectWebSocket();
+          }, 3000);
+        }
+      };
+    } catch (err) {
+      console.error("Failed to create WebSocket:", err);
+    }
+  }
+
+  function disconnectWebSocket() {
+    if (wsReconnectTimeoutRef.current) {
+      clearTimeout(wsReconnectTimeoutRef.current);
+      wsReconnectTimeoutRef.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }
+
+  function handleWebSocketMessage(data) {
+    if (data.type === "chunk") {
+      // Use flushSync to force immediate render for real-time streaming
+      flushSync(() => {
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          for (let i = newMessages.length - 1; i >= 0; i--) {
+            if (newMessages[i].role === "assistant") {
+              newMessages[i] = {
+                ...newMessages[i],
+                text: (newMessages[i].text || "") + (data.content || ""),
+              };
+              break;
+            }
+          }
+          return newMessages;
+        });
+      });
+    } else if (data.type === "done") {
+      // Finalize the conversation
+      const newConvId = data.conversation_id;
+      setSelectedConvId(newConvId);
+      setIsNewConv(false);
+      setSending(false);
+
+      // Update the last assistant message with final content
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        for (let i = newMessages.length - 1; i >= 0; i--) {
+          if (newMessages[i].role === "assistant") {
+            newMessages[i] = {
+              ...newMessages[i],
+              text: data.content || newMessages[i].text || "",
+              created_at: data.created_at || newMessages[i].created_at,
+            };
+            break;
+          }
+        }
+        return newMessages;
+      });
+
+      // Update conversation list
+      setConversations((prev) => {
+        const updated = prev.filter((c) => c.id !== newConvId);
+        const title = data.content ? data.content.slice(0, 60) : "Chat";
+        const snippet = data.content ? data.content.slice(0, 120) : "";
+        return [
+          { id: newConvId, title, updated_at: data.created_at || new Date().toISOString(), snippet },
+          ...updated,
+        ];
+      });
+
+      // Reload conversation list to get updated metadata
+      loadConversationList();
+    } else if (data.type === "error") {
+      setSending(false);
+      const errorMsg = data.content || "An error occurred. Please try again.";
+      // Remove the placeholder assistant message if it exists
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === "assistant" && !newMessages[newMessages.length - 1].text) {
+          newMessages.pop();
+        }
+        return [
+          ...newMessages,
+          {
+            role: "error",
+            text: errorMsg,
+            created_at: new Date().toISOString(),
+          },
+        ];
+      });
+    }
+  }
+
   async function loadConversationList() {
     setLoadingList(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/c/list`, { method: "GET" });
+      const res = await fetch(`${API_BASE}/c/list`, { 
+        method: "GET",
+        credentials: "include", // Send cookies for authentication
+      });
       if (!res.ok) throw new Error(`Failed to fetch list: ${res.status}`);
       const data = await res.json();
       // Expecting an array of metadata dicts { id, title, updated_at, snippet }
@@ -51,12 +201,21 @@ export default function ChatUI() {
     try {
       const res = await fetch(`${API_BASE}/c/${encodeURIComponent(convId)}`, {
         method: "GET",
+        credentials: "include", // Send cookies for authentication
         signal: controller.signal,
       });
       if (!res.ok) throw new Error(`Failed to fetch conv: ${res.status}`);
       const data = await res.json();
-      // Expecting data like { id, title, messages: [{role, text, created_at}, ...] }
-      setMessages(Array.isArray(data.messages) ? data.messages : []);
+      // Backend returns: { id, title, updated_at, messages: [{id, role, content, created_at}, ...] }
+      // Frontend expects: messages with {role, text, created_at}
+      const formattedMessages = Array.isArray(data.messages)
+        ? data.messages.map((msg) => ({
+            role: msg.role,
+            text: msg.content, // Map content to text
+            created_at: msg.created_at,
+          }))
+        : [];
+      setMessages(formattedMessages);
       setSelectedConvId(data.id ?? convId);
     } catch (err) {
       if (err.name === "AbortError") return; // expected when aborted
@@ -104,65 +263,57 @@ export default function ChatUI() {
     const userText = inputValue;
     setInputValue("");
 
-    // Optimistic add
+    // Optimistic add user message
     const userMsg = { role: "user", text: userText, created_at: new Date().toISOString() };
     setMessages((m) => [...m, userMsg]);
 
+    // Ensure WebSocket is connected
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      connectWebSocket();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        setSending(false);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "error",
+            text: "Failed to connect. Please try again.",
+            created_at: new Date().toISOString(),
+          },
+        ]);
+        return;
+      }
+    }
+
     try {
+      // Send query via WebSocket
       const payload = {
+        type: "query",
         conversation_id: isNewConv ? null : selectedConvId,
         message: userText,
       };
-      const res = await fetch(`${API_BASE}/qa`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      
-      if (!res.ok) {
-        let errorMessage = "Failed to send message. Please try again.";
-        try {
-          const errorData = await res.json();
-          errorMessage = errorData.detail || errorData.message || errorMessage;
-        } catch {
-          errorMessage = `Error: ${res.status} ${res.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-      
-      const responseData = await res.json();
-      // Expecting at least: { conversation_id, assistant_message: { text, created_at }, title? }
+      wsRef.current.send(JSON.stringify(payload));
 
-      const newConvId = responseData.conversation_id ?? selectedConvId;
-      const assistantMsg = responseData.assistant_message ?? { role: "assistant", text: responseData.reply ?? "", created_at: new Date().toISOString() };
-
-      // update selected conv id if server returned a new id
-      setSelectedConvId(newConvId);
-      setIsNewConv(false);
-
-      // replace last messages (we added user optimistic) and append assistant
-      setMessages((prev) => {
-        // keep all previous user messages and append assistant
-        return [...prev, { role: "assistant", text: assistantMsg.text ?? assistantMsg, created_at: assistantMsg.created_at }];
-      });
-
-      // update conversations list with metadata from server if provided
-      setConversations((prev) => {
-        const updated = prev.filter((c) => c.id !== newConvId);
-        const title = responseData.title ?? (assistantMsg.text ? assistantMsg.text.slice(0, 60) : "Chat");
-        const snippet = assistantMsg.text ? assistantMsg.text.slice(0, 120) : "";
-        return [{ id: newConvId, title, updated_at: new Date().toISOString(), snippet }, ...updated];
-      });
+      // Add placeholder assistant message that will be updated with chunks
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          text: "",
+          created_at: new Date().toISOString(),
+        },
+      ]);
     } catch (err) {
       console.error(err);
-      // Add error message inline after the user message
-      setMessages((prev) => [...prev, {
-        role: "error",
-        text: err.message || "An error occurred. Please try again.",
-        created_at: new Date().toISOString(),
-      }]);
-    } finally {
       setSending(false);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "error",
+          text: err.message || "An error occurred. Please try again.",
+          created_at: new Date().toISOString(),
+        },
+      ]);
     }
   }
 

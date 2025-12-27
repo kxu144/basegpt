@@ -1,5 +1,6 @@
 import React from "react";
 import { formatDate } from "../../utils/api";
+import { useAuth } from "../common/useAuth.jsx";
 
 export default function Sidebar({
   conversations,
@@ -10,6 +11,7 @@ export default function Sidebar({
   searchTerm,
   setSearchTerm,
 }) {
+  const { email, logout } = useAuth();
   const filteredConversations = conversations.filter((c) => {
     if (!searchTerm) return true;
     const q = searchTerm.toLowerCase();
@@ -66,6 +68,24 @@ export default function Sidebar({
             ))}
           </ul>
         )}
+      </div>
+
+      {/* User info and logout */}
+      <div className="p-3 border-t border-gray-800">
+        {email && (
+          <div className="text-xs text-gray-400 mb-2 px-2 truncate">
+            Logged in as: {email}
+          </div>
+        )}
+        <button
+          onClick={logout}
+          className="w-full px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors flex items-center gap-2 justify-center"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Logout
+        </button>
       </div>
     </aside>
   );

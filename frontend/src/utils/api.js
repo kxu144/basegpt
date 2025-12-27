@@ -13,3 +13,19 @@ export function formatDate(ts) {
     return "";
   }
 }
+
+/**
+ * Helper function to make authenticated API requests with cookies
+ */
+export async function authenticatedFetch(url, options = {}) {
+  const defaultOptions = {
+    credentials: "include", // Important for sending cookies
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  };
+
+  const response = await fetch(url, { ...defaultOptions, ...options });
+  return response;
+}
