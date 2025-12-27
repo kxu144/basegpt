@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.auth import verify_password, create_user
 from app.utils.database import get_db
+from app.utils.utils import timer
 from app.models.database import User
 
 auth_router = APIRouter(prefix="/auth")
@@ -87,6 +88,7 @@ def verify_token(token: Optional[str]) -> dict:
 
 
 @auth_router.post("/login")
+@timer
 async def login(
     request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
 ):
@@ -122,6 +124,7 @@ async def login(
 
 
 @auth_router.post("/register")
+@timer
 async def register(
     request: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)
 ):
@@ -169,6 +172,7 @@ async def register(
 
 
 @auth_router.post("/logout")
+@timer
 async def logout(
     request: Request,
     response: Response,

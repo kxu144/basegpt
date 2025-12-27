@@ -18,6 +18,7 @@ from app import logger
 from app.utils.database import get_db
 from app.utils.llm import call_openai
 from app.models.database import Conversation, Message
+from app.utils.utils import timer
 from app.views.auth import get_current_user_obj, verify_token, get_token_from_request
 
 qa_router = APIRouter()
@@ -29,6 +30,7 @@ class QaRequest(BaseModel):
 
 
 @qa_router.post("/qa")
+@timer
 async def qa(
     request: QaRequest,
     user=Depends(get_current_user_obj),
@@ -53,10 +55,7 @@ async def qa(
     messages.append({"role": "user", "content": request.message})
 
     # call openai
-    start_time = time.time()
     response = await call_openai(model="gpt-5-nano", messages=messages)
-    end_time = time.time()
-    logger.info(f"Time taken: {end_time - start_time} seconds")
 
     # create new conversation if none exists
     if not conversation:
@@ -174,6 +173,9 @@ async def qa_websocket(websocket: WebSocket):
                 conversation_id = data.get("conversation_id") or str(uuid.uuid4())
                 message = data.get("message", "")
 
+                # Start timing for this query
+                query_start_time = time.time()
+
                 if not message:
                     await websocket.send_json(
                         {
@@ -253,33 +255,45 @@ async def qa_websocket(websocket: WebSocket):
 
                 # Stream OpenAI response
                 full_response = ""
-                stream = await call_openai(
-                    model="gpt-5-nano", messages=messages, stream=True
-                )
+                try:
+                    stream = await call_openai(
+                        model="gpt-5-nano",
+                        messages=messages,
+                        stream=True,
+                        reasoning={"effort": "minimal"},
+                    )
 
-                async for event in stream:
-                    # Extract chunk from event based on OpenAI streaming format
-                    chunk = None
+                    async for event in stream:
+                        # Extract chunk from event based on OpenAI streaming format
+                        chunk = None
 
-                    if event.type == "response.created":
-                        # response created, send initial chunk
-                        continue
-                    elif event.type == "response.output_text.delta":
-                        chunk = event.delta
-                    else:
-                        logger.warning(f"Unknown event type: {event}")
-                        continue
+                        if event.type == "response.created":
+                            # response created, send initial chunk
+                            continue
+                        elif event.type == "response.output_text.delta":
+                            chunk = event.delta
+                        else:
+                            continue
 
-                    if chunk:
-                        full_response += chunk
-                        await websocket.send_json(
-                            {
-                                "type": "chunk",
-                                "query_id": query_id,
-                                "content": chunk,
-                                "conversation_id": conversation_id,
-                            }
-                        )
+                        if chunk:
+                            full_response += chunk
+                            await websocket.send_json(
+                                {
+                                    "type": "chunk",
+                                    "query_id": query_id,
+                                    "content": chunk,
+                                    "conversation_id": conversation_id,
+                                }
+                            )
+                except Exception as stream_error:
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "query_id": query_id,
+                            "content": f"Streaming error: {str(stream_error)}",
+                        }
+                    )
+                    continue
 
                 # Save assistant message to database
                 assistant_tsv_result = await db.execute(
@@ -298,6 +312,13 @@ async def qa_websocket(websocket: WebSocket):
                 )
                 db.add(assistant_message)
                 await db.commit()
+
+                # Log timing for this query
+                query_end_time = time.time()
+                query_duration = query_end_time - query_start_time
+                logger.info(
+                    f"WebSocket query {query_id} took {query_duration:.4f} seconds"
+                )
 
                 # Send completion message
                 await websocket.send_json(

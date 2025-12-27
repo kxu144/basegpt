@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.utils.database import get_db
+from app.utils.utils import timer
 from app.views.auth import get_current_user_obj
 from app.models.database import Conversation, Message
 
@@ -11,6 +12,7 @@ conversation_router = APIRouter(prefix="/c")
 
 
 @conversation_router.get("/list")
+@timer
 async def list_conversations(
     user=Depends(get_current_user_obj),
     db: AsyncSession = Depends(get_db),
@@ -36,6 +38,7 @@ async def list_conversations(
 
 
 @conversation_router.get("/{conversation_id}")
+@timer
 async def get_conversation(
     conversation_id: str,
     user=Depends(get_current_user_obj),

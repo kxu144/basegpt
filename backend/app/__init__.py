@@ -9,15 +9,14 @@ from dotenv import load_dotenv
 assert load_dotenv("app/envs/.env")
 assert load_dotenv("app/envs/.env.credentials")
 
+# set up logging
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Import database to initialize connection and tables
 from app.utils.database import Base, engine, init_models
 from app.models import *
-
-# set up logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 
 def create_app():
@@ -49,4 +48,5 @@ def create_app():
     app.include_router(conversation_router)
     app.include_router(qa_router)
 
+    logger.info("App initialized")
     return app
