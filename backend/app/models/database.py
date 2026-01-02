@@ -9,7 +9,20 @@ class User(Base):
     __tablename__ = "users"
     email = Column(String, unique=True, primary_key=True)
     password_hash = Column(String, nullable=False)
+    salt = Column(String, nullable=False)
     conversations = relationship("Conversation", back_populates="user")
+    keys = relationship("UserKeys", back_populates="user")
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now)
+
+
+class UserKeys(Base):
+    __tablename__ = "user_keys"
+    id = Column(String, primary_key=True)
+    user_email = Column(String, ForeignKey("users.email"), nullable=False)
+    user = relationship("User", back_populates="keys")
+    key = Column(String, nullable=False)
+    encrypted_password = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now)
 

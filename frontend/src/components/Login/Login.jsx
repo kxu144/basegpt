@@ -46,19 +46,19 @@ export default function Login({ onLoginSuccess }) {
         body: JSON.stringify(body),
       });
 
+      const responseData = await response.json().catch(() => ({}));
+      
       if (response.ok) {
-        const data = await response.json();
         // Backend sets HTTP-only cookie automatically
         // We just set email for frontend display
-        setAuthCookies(data.email || email, data.token);
-        // Wait a moment for cookie to be set, then verify auth
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        await onLoginSuccess();
+        setAuthCookies(responseData.email || email, responseData.token);
+        // Call onLoginSuccess with the email from response
+        await onLoginSuccess(responseData.email || email);
       } else {
-        const errorData = await response.json().catch(() => ({}));
+        // Show error from backend response
         setError(
-          errorData.detail ||
-            errorData.message ||
+          responseData.detail ||
+            responseData.message ||
             `${isRegistering ? "Registration" : "Login"} failed. Please try again.`
         );
       }

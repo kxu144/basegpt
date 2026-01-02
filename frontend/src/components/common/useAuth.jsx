@@ -53,15 +53,20 @@ export function AuthProvider({ children }) {
     return () => clearInterval(interval);
   }, []);
 
-  const login = async () => {
-    const isAuth = await isAuthenticated();
-    setAuthenticated(isAuth);
-    if (isAuth) {
+  const login = async (emailFromResponse) => {
+    // Trust the login response - if we got here, login succeeded
+    // Set authenticated immediately to avoid race conditions
+    setAuthenticated(true);
+    
+    // Set email from response or from cookie
+    if (emailFromResponse) {
+      setEmail(emailFromResponse);
+    } else {
       const cookieEmail = getEmail();
       if (cookieEmail) {
         setEmail(cookieEmail);
       } else {
-        // Fetch email from backend
+        // Fetch email from backend as fallback
         try {
           const response = await fetch(`${API_BASE}/auth/me`, {
             credentials: "include",

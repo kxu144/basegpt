@@ -9,5 +9,8 @@ sqlalchemy
 # Authentication
 PyJWT
 
+# Encryption
+cryptography
+
 # Add other dependencies as needed
 

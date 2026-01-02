@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import logging
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -18,6 +19,9 @@ logger = get_logger(__name__)
 from app.utils.database import Base, engine, init_models
 from app.models import *
 
+WEBSERVER_URL = os.getenv("WEBSERVER_URL")
+assert WEBSERVER_URL, "WEBSERVER_URL is not set"
+
 
 def create_app():
     @asynccontextmanager
@@ -30,7 +34,7 @@ def create_app():
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # or ["http://localhost:3000"] for stricter control
+        allow_origins=[WEBSERVER_URL],
         allow_credentials=True,  # Important for cookies
         allow_methods=["*"],
         allow_headers=["*"],
@@ -43,10 +47,12 @@ def create_app():
     from app.views.auth import auth_router
     from app.views.conversation import conversation_router
     from app.views.qa import qa_router
+    from app.views.keys import keys_router
 
     app.include_router(auth_router)
     app.include_router(conversation_router)
     app.include_router(qa_router)
+    app.include_router(keys_router)
 
     logger.info("App initialized")
     return app

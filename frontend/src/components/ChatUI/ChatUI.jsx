@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { flushSync } from "react-dom";
 import Sidebar from "./Sidebar";
 import ChatPanel from "./ChatPanel";
+import Settings from "./Settings";
 import { API_BASE } from "../../utils/api";
 import { useScrollToBottom } from "../common/hooks";
 
@@ -16,6 +17,7 @@ export default function ChatUI() {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isNewConv, setIsNewConv] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const convLoadController = useRef(null);
   const messagesContainerRef = useScrollToBottom(messages);
   const wsRef = useRef(null);
@@ -340,6 +342,7 @@ export default function ChatUI() {
         loading={loadingList}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
+        onOpenSettings={() => setShowSettings(true)}
       />
 
       <ChatPanel
@@ -356,6 +359,8 @@ export default function ChatUI() {
         convTitle={convTitle}
         convDate={convDate}
       />
+
+      <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   );
 }
