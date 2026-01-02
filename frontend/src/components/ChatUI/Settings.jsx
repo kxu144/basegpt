@@ -103,7 +103,7 @@ export default function Settings({ isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
       <div 
         className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[90vh] max-h-[800px] flex overflow-hidden"
         onClick={(e) => e.stopPropagation()}

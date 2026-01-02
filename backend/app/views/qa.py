@@ -29,84 +29,15 @@ class QaRequest(BaseModel):
     message: str
 
 
-@qa_router.post("/qa")
+@qa_router.post("/qa", deprecated=True)
 @timer
 async def qa(
     request: QaRequest,
     user=Depends(get_current_user_obj),
     db: AsyncSession = Depends(get_db),
 ):
-    # user is now available from the authenticated session
-    conversation_id = request.conversation_id or str(uuid.uuid4())
-    # verify conversation_id is a valid uuid
-    try:
-        uuid.UUID(conversation_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid conversation_id")
-
-    # fetch conversation history
-    conversation = await db.get(Conversation, conversation_id)
-    messages = []
-    if conversation:
-        messages = [
-            {"role": message.role, "content": message.content}
-            for message in conversation.messages or []
-        ]
-    messages.append({"role": "user", "content": request.message})
-
-    # call openai
-    response = await call_openai(model="gpt-5-nano", messages=messages)
-
-    # create new conversation if none exists
-    if not conversation:
-        conversation = Conversation(
-            id=conversation_id,
-            user_email=user.email,  # Use user.email (primary key)
-            title=request.message[:100],
-        )
-        db.add(conversation)
-        await db.flush()  # Flush to get the conversation ID
-
-    # save message to database
-    # Generate TSVECTOR for full-text search using PostgreSQL's to_tsvector
-    user_tsv_result = await db.execute(
-        text("SELECT to_tsvector('english', :content)"), {"content": request.message}
-    )
-    user_tsv = user_tsv_result.scalar()
-
-    assistant_tsv_result = await db.execute(
-        text("SELECT to_tsvector('english', :content)"),
-        {"content": response.output_text},
-    )
-    assistant_tsv = assistant_tsv_result.scalar()
-
-    user_message = Message(
-        id=str(uuid.uuid4()),
-        conversation_id=conversation_id,
-        role="user",
-        content=request.message,
-        content_tsv=user_tsv,
-        created_at=datetime.now(),
-    )
-    assistant_message = Message(
-        id=str(uuid.uuid4()),
-        conversation_id=conversation_id,
-        role="assistant",
-        content=response.output_text,
-        content_tsv=assistant_tsv,
-        created_at=datetime.now(),
-    )
-    db.add(user_message)
-    db.add(assistant_message)
-    await db.commit()
-
-    return {
-        "conversation_id": conversation_id,
-        "assistant_message": {
-            "text": response.output_text,
-            "created_at": datetime.now().isoformat(),
-        },
-    }
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content={"message": "Deprecated"}, status_code=410)
 
 
 @qa_router.websocket("/ws")
@@ -197,6 +128,20 @@ async def qa_websocket(websocket: WebSocket):
                         }
                     )
                     continue
+
+                # Validate entities
+                for entity in data.get("entities", []):
+                    start, end, entity_id = entity["start"], entity["end"], entity["id"]
+                    extracted_message = message[start:end]
+                    if extracted_message != entity_id:
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "query_id": query_id,
+                                "content": f"Invalid entity: {extracted_message} != {entity_id}",
+                            }
+                        )
+                        continue
 
                 # Fetch conversation history
                 conversation = await db.get(Conversation, conversation_id)

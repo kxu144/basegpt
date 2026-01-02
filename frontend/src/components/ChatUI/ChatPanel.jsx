@@ -15,6 +15,9 @@ export default function ChatPanel({
   selectedConvId,
   convTitle,
   convDate,
+  entities,
+  onEntitiesChange,
+  messageInputRef,
 }) {
   return (
     <main className="flex-1 flex flex-col bg-white">
@@ -28,12 +31,15 @@ export default function ChatPanel({
         {/* Input stays at bottom */}
         <div className="border-t border-gray-200 bg-white">
           <MessageInput
+            ref={messageInputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onSend={onSend}
             sending={sending}
             isNewConv={isNewConv}
             onKeyDown={onKeyDown}
+            entities={entities}
+            onEntitiesChange={onEntitiesChange}
           />
         </div>
       </div>

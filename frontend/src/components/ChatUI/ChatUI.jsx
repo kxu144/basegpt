@@ -6,6 +6,7 @@ import Settings from "./Settings";
 import { API_BASE } from "../../utils/api";
 import { useScrollToBottom } from "../common/hooks";
 
+
 export default function ChatUI() {
   const [conversations, setConversations] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -18,10 +19,12 @@ export default function ChatUI() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isNewConv, setIsNewConv] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [entities, setEntities] = useState([]);
   const convLoadController = useRef(null);
   const messagesContainerRef = useScrollToBottom(messages);
   const wsRef = useRef(null);
   const wsReconnectTimeoutRef = useRef(null);
+  const messageInputRef = useRef(null);
 
   useEffect(() => {
     loadConversationList();
@@ -238,6 +241,7 @@ export default function ChatUI() {
     setMessages([]);
     setIsNewConv(true);
     setInputValue("");
+    setEntities([]);
     // also push a minimal metadata entry at the top
     setConversations((prev) => [
       { id: tmpId, title: "New chat", updated_at: new Date().toISOString(), snippet: "" },
@@ -263,7 +267,9 @@ export default function ChatUI() {
     setError(null);
     setSending(true);
     const userText = inputValue;
+    const currentEntities = entities;
     setInputValue("");
+    setEntities([]);
 
     // Optimistic add user message
     const userMsg = { role: "user", text: userText, created_at: new Date().toISOString() };
@@ -288,12 +294,18 @@ export default function ChatUI() {
     }
 
     try {
-      // Send query via WebSocket
+      // Send query via WebSocket with optional entities
       const payload = {
         type: "query",
         conversation_id: isNewConv ? null : selectedConvId,
         message: userText,
       };
+      
+      // Add entities if they exist
+      if (currentEntities && currentEntities.length > 0) {
+        payload.entities = currentEntities;
+      }
+      
       wsRef.current.send(JSON.stringify(payload));
 
       // Add placeholder assistant message that will be updated with chunks
@@ -358,9 +370,21 @@ export default function ChatUI() {
         selectedConvId={selectedConvId}
         convTitle={convTitle}
         convDate={convDate}
+        entities={entities}
+        onEntitiesChange={setEntities}
+        messageInputRef={messageInputRef}
       />
 
-      <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <Settings 
+        isOpen={showSettings} 
+        onClose={() => {
+          setShowSettings(false);
+          // Refresh keys when settings closes
+          if (messageInputRef.current?.refreshKeys) {
+            messageInputRef.current.refreshKeys();
+          }
+        }} 
+      />
     </div>
   );
 }
